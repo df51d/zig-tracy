@@ -142,6 +142,7 @@ pub fn build(b: *std.Build) void {
 const tracy_header_files = [_][]const u8{
     "tracy/TracyC.h",
     "tracy/Tracy.hpp",
+    "tracy/TracyCUDA.hpp",
     "tracy/TracyD3D11.hpp",
     "tracy/TracyD3D12.hpp",
     "tracy/TracyLua.hpp",
@@ -181,8 +182,8 @@ const tracy_header_files = [_][]const u8{
     "common/TracySocket.hpp",
     "common/TracyStackFrames.hpp",
     "common/TracySystem.hpp",
-    "common/TracyUwp.hpp",
     "common/TracyVersion.hpp",
+    "common/TracyWinFamily.hpp",
     "common/TracyYield.hpp",
     "common/tracy_lz4.hpp",
     "common/tracy_lz4hc.hpp",
