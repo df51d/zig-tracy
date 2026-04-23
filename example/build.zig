@@ -15,13 +15,15 @@ pub fn build(b: *std.Build) void {
 
     const exe = b.addExecutable(.{
         .name = "tracy-example",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .root_source_file = b.path("src/main.zig"),
+        }),
     });
     exe.root_module.addImport("tracy", tracy.module("tracy"));
-    exe.linkLibrary(tracy.artifact("tracy"));
-    exe.linkLibCpp();
+    exe.root_module.linkLibrary(tracy.artifact("tracy"));
+    exe.is_linking_libcpp = true;
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);

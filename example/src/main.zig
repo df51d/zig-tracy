@@ -1,19 +1,21 @@
 const std = @import("std");
 const tracy = @import("tracy");
 
-var finalise_threads: std.Thread.ResetEvent = .{};
+var finalise_threads: std.Io.Event = .unset;
+var io: std.Io = undefined;
 
-fn handleSigInt(_: c_int) callconv(.C) void {
-    finalise_threads.set();
+fn handleSigInt(_: std.posix.SIG) callconv(.c) void {
+    finalise_threads.set(io);
 }
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
     tracy.setThreadName("Main");
     defer tracy.message("Graceful main thread exit");
 
+    io = init.io;
     std.posix.sigaction(std.posix.SIG.INT, &.{
         .handler = .{ .handler = handleSigInt },
-        .mask = std.posix.empty_sigset,
+        .mask = std.posix.sigemptyset(),
         .flags = 0,
     }, null);
 
@@ -25,7 +27,7 @@ pub fn main() !void {
 
         const zone = tracy.initZone(@src(), .{ .name = "Important work" });
         defer zone.deinit();
-        std.time.sleep(100);
+        try std.Io.sleep(io, .{ .nanoseconds = 100 }, .awake);
     }
 }
 
@@ -40,20 +42,26 @@ fn otherThread() void {
 
     var tracing_allocator = tracy.TracingAllocator.initNamed("arena", arena.allocator());
 
-    var stack = std.ArrayList(u8).init(tracing_allocator.allocator());
+    var stack = std.Io.Writer.Allocating.init(tracing_allocator.allocator());
     defer stack.deinit();
 
-    const stdin = std.io.getStdIn().reader();
-    const stdout = std.io.getStdOut().writer();
+    var rbuf: [4096]u8 = undefined;
+    var wbuf: [4096]u8 = undefined;
+    var stdin_reader = std.Io.File.stdin().reader(io, &rbuf);
+    var stdin = &stdin_reader.interface;
+    var stdout_writer = std.Io.File.stdout().writer(io, &wbuf);
+    var stdout = &stdout_writer.interface;
 
     while (!finalise_threads.isSet()) {
         const zone = tracy.initZone(@src(), .{ .name = "IO loop" });
         defer zone.deinit();
 
         stdout.print("Enter string: ", .{}) catch break;
+        stdout.flush() catch break;
 
         const stream_zone = tracy.initZone(@src(), .{ .name = "Writer.streamUntilDelimiter" });
-        stdin.streamUntilDelimiter(stack.writer(), '\n', null) catch break;
+        _ = stdin.streamDelimiter(&stack.writer, '\n') catch break;
+        _ = stdin.discard(.limited(1)) catch break;
         stream_zone.deinit();
 
         const toowned_zone = tracy.initZone(@src(), .{ .name = "ArrayList.toOwnedSlice" });
@@ -66,5 +74,6 @@ fn otherThread() void {
         reverse_zone.deinit();
 
         stdout.print("Reversed: {s}\n", .{str}) catch break;
+        stdout.flush() catch break;
     }
 }

@@ -74,20 +74,20 @@ pub fn build(b: *std.Build) void {
     });
 
     if (target.result.os.tag == .windows) {
-        tracy_client.linkSystemLibrary("dbghelp");
-        tracy_client.linkSystemLibrary("ws2_32");
+        tracy_client.root_module.linkSystemLibrary("dbghelp", .{});
+        tracy_client.root_module.linkSystemLibrary("ws2_32", .{});
     }
     if (target.result.abi != .msvc) {
-        tracy_client.linkLibCpp();
+        tracy_client.is_linking_libcpp = true;
     } else {
-        tracy_client.linkLibC();
+        tracy_client.is_linking_libc = true;
     }
-    tracy_client.addCSourceFile(.{
+    tracy_client.root_module.addCSourceFile(.{
         .file = tracy_src.path("./public/TracyClient.cpp"),
         .flags = if (target.result.os.tag == .windows) &.{"-fms-extensions"} else &.{},
     });
     tracy_client.installHeadersDirectory(tracy_src.path("public"), "", .{
-        .include_extensions = &.{".h", ".hpp"},
+        .include_extensions = &.{ ".h", ".hpp" },
     });
     if (tracy_enable)
         tracy_client.root_module.addCMacro("TRACY_ENABLE", "1");
